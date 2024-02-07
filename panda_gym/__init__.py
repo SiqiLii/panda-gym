@@ -20,5 +20,4 @@ for task in ["Reach", "Slide", "Push", "PickAndPlace", "Stack", "Flip","Bridge",
                 kwargs={"reward_type": reward_type, "control_type": control_type},
                 max_episode_steps=100 if task == "Stack" else 50,
             )
-            print("ENV ID",env_id)
             ENV_IDS.append(env_id)
