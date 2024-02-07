@@ -1,9 +1,9 @@
 from typing import Optional
 
 import numpy as np
-from gymnasium import spaces
+import gymnasium as gym
 
-from panda_gym.envs.core import PyBulletRobot
+from panda_gym.envs.core_multi_robot import PyBulletRobot
 from panda_gym.pybullet import PyBullet
 
 
@@ -23,22 +23,28 @@ class Panda(PyBulletRobot):
         sim: PyBullet,
         block_gripper: bool = False,
         base_position: Optional[np.ndarray] = None,
+        #base_orientation: Optional[np.ndarray] = None,
+        base_gripper_orientation = np.array([np.pi,0,0]),
         control_type: str = "ee",
+        body_name: str = "panda"
     ) -> None:
         base_position = base_position if base_position is not None else np.zeros(3)
+        #self.base_orientation = base_orientation if base_orientation is not None else np.zeros(3)
+        self.base_gripper_orientation = base_gripper_orientation
         self.block_gripper = block_gripper
         self.control_type = control_type
         n_action = 3 if self.control_type == "ee" else 7  # control (x, y z) if "ee", else, control the 7 joints
         n_action += 0 if self.block_gripper else 1
-        action_space = spaces.Box(-1.0, 1.0, shape=(n_action,), dtype=np.float32)
+        action_space = gym.spaces.Box(-1.0, 1.0, shape=(n_action,), dtype=np.float32)
         super().__init__(
             sim,
-            body_name="panda",
+            body_name=body_name, # TODO when multiple robots you must change this
             file_name="franka_panda/panda.urdf",
             base_position=base_position,
+            #base_orientation=self.base_orientation,
             action_space=action_space,
             joint_indices=np.array([0, 1, 2, 3, 4, 5, 6, 9, 10]),
-            joint_forces=np.array([87.0, 87.0, 87.0, 87.0, 12.0, 120.0, 120.0, 170.0, 170.0]),
+            joint_forces=np.array([87.0, 87.0, 87.0, 87.0, 12.0, 120.0, 120.0, 170.0, 170.0]), # last 2 are the finger forces (default is 170)
         )
 
         self.fingers_indices = np.array([9, 10])
@@ -49,12 +55,34 @@ class Panda(PyBulletRobot):
         self.sim.set_spinning_friction(self.body_name, self.fingers_indices[0], spinning_friction=0.001)
         self.sim.set_spinning_friction(self.body_name, self.fingers_indices[1], spinning_friction=0.001)
 
+        # visualize right gripper constraint
+        #radius = 0.05
+        #self.sim.create_sphere(
+        #  body_name="gripper_right",
+        #  radius=radius,
+        #  mass=0.,
+        #  position=np.array([0.5, 0.0, 0.15]),
+        #  rgba_color=np.array([0.9, 0.1, 0.1, 0.3]),
+        #  ghost=True
+        #)
+#
+        ## visualize left gripper constraint
+        #self.sim.create_sphere(
+        #  body_name="gripper_left",
+        #  radius=radius,
+        #  mass=0.,
+        #  position=np.array([0.5, 0.0, 0.15]),
+        #  rgba_color=np.array([0.9, 0.1, 0.1, 0.3]),
+        #  ghost=True
+        #)
+
     def set_action(self, action: np.ndarray) -> None:
         action = action.copy()  # ensure action don't change
-        action = np.clip(action, self.action_space.low, self.action_space.high)
+        #action = np.clip(action, self.action_space.low, self.action_space.high)
         if self.control_type == "ee":
             ee_displacement = action[:3]
-            target_arm_angles = self.ee_displacement_to_target_arm_angles(ee_displacement)
+            ee_rotation_euler = action[3:6]
+            target_arm_angles = self.ee_displacement_to_target_arm_angles(ee_displacement, ee_rotation_euler)
         else:
             arm_joint_ctrl = action[:7]
             target_arm_angles = self.arm_joint_ctrl_to_target_arm_angles(arm_joint_ctrl)
@@ -69,7 +97,14 @@ class Panda(PyBulletRobot):
         target_angles = np.concatenate((target_arm_angles, [target_fingers_width / 2, target_fingers_width / 2]))
         self.control_joints(target_angles=target_angles)
 
-    def ee_displacement_to_target_arm_angles(self, ee_displacement: np.ndarray) -> np.ndarray:
+        # update position of custome sphere
+        #ee_position = np.array(self.get_ee_position())
+        #offset = 0.048
+        #self.sim.set_base_pose("gripper_left", ee_position + np.array([0., offset, 0.0]), np.array([0.0, 0.0, 0.0, 1.0]))
+        #self.sim.set_base_pose("gripper_right", ee_position + np.array([0, -offset, 0.0]), np.array([0.0, 0.0, 0.0, 1.0]))
+        
+
+    def ee_displacement_to_target_arm_angles(self, ee_displacement: np.ndarray, ee_rotation_euler: np.ndarray) -> np.ndarray:
         """Compute the target arm angles from the end-effector displacement.
 
         Args:
@@ -84,10 +119,17 @@ class Panda(PyBulletRobot):
         target_ee_position = ee_position + ee_displacement
         # Clip the height target. For some reason, it has a great impact on learning
         target_ee_position[2] = np.max((0, target_ee_position[2]))
+        # Convert rotation from Euler to Quaternions
+        target_ee_rotation = self.sim.physics_client.getQuaternionFromEuler(self.get_ee_orientation() + 0.05*ee_rotation_euler)
         # compute the new joint angles
         target_arm_angles = self.inverse_kinematics(
-            link=self.ee_link, position=target_ee_position, orientation=np.array([1.0, 0.0, 0.0, 0.0])
+            link=self.ee_link, position=target_ee_position, orientation=target_ee_rotation
         )
+        # TODO:
+        # [1, 0, 0, 0] for normal gripper
+        # [0, 1, 0, 0] for reversed gripper
+        # NOTE: I think the x element received from the controller has to be made negative for the reversed gripper 
+
         target_arm_angles = target_arm_angles[:7]  # remove fingers angles
         return target_arm_angles
 
@@ -110,13 +152,21 @@ class Panda(PyBulletRobot):
         # end-effector position and velocity
         ee_position = np.array(self.get_ee_position())
         ee_velocity = np.array(self.get_ee_velocity())
+        ee_orientation = np.array(self.get_ee_orientation())
         # fingers opening
         if not self.block_gripper:
             fingers_width = self.get_fingers_width()
-            observation = np.concatenate((ee_position, ee_velocity, [fingers_width]))
+            obs = np.concatenate((ee_position, ee_orientation, ee_velocity, [fingers_width]))
         else:
-            observation = np.concatenate((ee_position, ee_velocity))
-        return observation
+            obs = np.concatenate((ee_position, ee_orientation, ee_velocity))
+        return obs
+
+    def get_info(self):
+        info = {}
+        info['name'] = self.body_name
+        info['x0'] =  np.array(self.get_ee_position())
+        info['euler0'] = self.base_gripper_orientation
+        return info
 
     def reset(self) -> None:
         self.set_joint_neutral()
@@ -132,9 +182,13 @@ class Panda(PyBulletRobot):
         return finger1 + finger2
 
     def get_ee_position(self) -> np.ndarray:
-        """Returns the position of the end-effector as (x, y, z)"""
+        """Returns the position of the ned-effector as (x, y, z)"""
         return self.get_link_position(self.ee_link)
 
     def get_ee_velocity(self) -> np.ndarray:
         """Returns the velocity of the end-effector as (vx, vy, vz)"""
         return self.get_link_velocity(self.ee_link)
+
+    def get_ee_orientation(self) -> float:
+        """ Returns the Euler angles of the gripper """
+        return self.get_link_orientation(self.ee_link)

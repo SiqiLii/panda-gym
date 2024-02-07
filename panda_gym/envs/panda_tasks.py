@@ -1,7 +1,6 @@
 from typing import Optional
 
 import numpy as np
-
 from panda_gym.envs.core import RobotTaskEnv
 from panda_gym.envs.robots.panda import Panda
 from panda_gym.envs.tasks.flip import Flip
@@ -10,8 +9,30 @@ from panda_gym.envs.tasks.push import Push
 from panda_gym.envs.tasks.reach import Reach
 from panda_gym.envs.tasks.slide import Slide
 from panda_gym.envs.tasks.stack import Stack
+from panda_gym.envs.tasks.bridge import Bridge
+from panda_gym.envs.tasks.colorstack import ColorStack
 from panda_gym.pybullet import PyBullet
 
+class PandaColorStackEnv(RobotTaskEnv):
+    """My robot-task environment."""
+
+    def __init__(self, render_mode="rgb_array",reward_type: str = "sparse",
+        control_type: str = "ee"):
+        sim = PyBullet(render_mode=render_mode)
+        robots = Panda(sim,base_position=np.array([0,0,0]),body_name="", control_type=control_type)
+        task = ColorStack(sim,reward_type=reward_type)
+        super().__init__(robots, task)
+
+
+class PandaBridgeEnv(RobotTaskEnv):
+    """My robot-task environment."""
+
+    def __init__(self, render_mode="rgb_array",reward_type: str = "sparse",
+        control_type: str = "ee"):
+        sim = PyBullet(render_mode=render_mode)
+        robots = Panda(sim,base_position=np.array([0,0,0]),body_name="", control_type=control_type)
+        task = Bridge(sim,reward_type=reward_type)
+        super().__init__(robots, task)
 
 class PandaFlipEnv(RobotTaskEnv):
     """Pick and Place task wih Panda robot.

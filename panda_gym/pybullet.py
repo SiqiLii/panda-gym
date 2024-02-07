@@ -1,7 +1,7 @@
 import os
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, Optional
-
+import warnings
 import numpy as np
 import pybullet as p
 import pybullet_data
@@ -27,10 +27,10 @@ class PyBullet:
         render_mode: str = "rgb_array",
         n_substeps: int = 20,
         background_color: Optional[np.ndarray] = None,
-        renderer: str = "Tiny",
+        renderer: str = "OpenGL",
     ) -> None:
         self.render_mode = render_mode
-        background_color = background_color if background_color is not None else np.array([223.0, 54.0, 45.0])
+        background_color = background_color if background_color is not None else np.array([66.0, 79.0, 102.0])
         self.background_color = background_color.astype(np.float32) / 255
         options = "--background_color_red={} --background_color_green={} --background_color_blue={}".format(
             *self.background_color
@@ -404,6 +404,7 @@ class PyBullet:
         half_extents: np.ndarray,
         mass: float,
         position: np.ndarray,
+        orientation:Optional[np.ndarray]= None,
         rgba_color: Optional[np.ndarray] = None,
         specular_color: Optional[np.ndarray] = None,
         ghost: bool = False,
@@ -440,6 +441,7 @@ class PyBullet:
             geom_type=self.physics_client.GEOM_BOX,
             mass=mass,
             position=position,
+            orientation=orientation,
             ghost=ghost,
             lateral_friction=lateral_friction,
             spinning_friction=spinning_friction,
@@ -458,6 +460,7 @@ class PyBullet:
         height: float,
         mass: float,
         position: np.ndarray,
+        orientation: Optional[np.ndarray] = None,
         rgba_color: Optional[np.ndarray] = None,
         specular_color: Optional[np.ndarray] = None,
         ghost: bool = False,
@@ -494,6 +497,7 @@ class PyBullet:
             geom_type=self.physics_client.GEOM_CYLINDER,
             mass=mass,
             position=position,
+            orientation=orientation,
             ghost=ghost,
             lateral_friction=lateral_friction,
             spinning_friction=spinning_friction,
@@ -554,6 +558,7 @@ class PyBullet:
         geom_type: int,
         mass: float = 0.0,
         position: Optional[np.ndarray] = None,
+        orientation: Optional[np.ndarray] = None,
         ghost: bool = False,
         lateral_friction: Optional[float] = None,
         spinning_friction: Optional[float] = None,
@@ -586,6 +591,7 @@ class PyBullet:
             baseCollisionShapeIndex=baseCollisionShapeIndex,
             baseMass=mass,
             basePosition=position,
+            baseOrientation=orientation
         )
 
         if lateral_friction is not None:
@@ -605,7 +611,7 @@ class PyBullet:
             mass=0.0,
             position=np.array([0.0, 0.0, z_offset - 0.01]),
             specular_color=np.zeros(3),
-            rgba_color=np.array([0.15, 0.15, 0.15, 1.0]),
+            rgba_color=np.array([0.74, 0.74, 0.77, 1.0]),
         )
 
     def create_table(
@@ -638,6 +644,7 @@ class PyBullet:
             rgba_color=np.array([0.95, 0.95, 0.95, 1]),
             lateral_friction=lateral_friction,
             spinning_friction=spinning_friction,
+            texture="assets/marble.png"
         )
 
     def set_lateral_friction(self, body: str, link: int, lateral_friction: float) -> None:
@@ -667,3 +674,6 @@ class PyBullet:
             linkIndex=link,
             spinningFriction=spinning_friction,
         )
+    
+    def get_contact_points():
+        return p.getContactPoints()
