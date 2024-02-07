@@ -644,7 +644,7 @@ class PyBullet:
             rgba_color=np.array([0.95, 0.95, 0.95, 1]),
             lateral_friction=lateral_friction,
             spinning_friction=spinning_friction,
-            texture="assets/marble.png"
+            texture="marble.png"
         )
 
     def set_lateral_friction(self, body: str, link: int, lateral_friction: float) -> None:

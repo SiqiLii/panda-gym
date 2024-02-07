@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 import gymnasium as gym
 
-from panda_gym.envs.core_multi_robot import PyBulletRobot
+from panda_gym.envs.core import PyBulletRobot
 from panda_gym.pybullet import PyBullet
 
 
