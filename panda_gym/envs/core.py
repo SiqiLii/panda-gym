@@ -263,13 +263,14 @@ class RobotTaskEnv(gym.Env):
         self.sim.remove_state(state_id)
 
     def step(self, action) -> Tuple[Dict[str, np.ndarray], float, bool, Dict[str, Any]]:
-        self.robot.set_action(action)
+        for i in range(len([self.robot])): [self.robot][i].set_action(action[i])
         self.sim.step()
         obs = self._get_obs()
         done = False
         info = {"is_success": False} # hardcoded to False
         reward = 0 # harcoded to 0
-        return obs, reward, done, info
+        trunc = False
+        return obs, reward, done, trunc,info
 
     def close(self) -> None:
         self.sim.close()
